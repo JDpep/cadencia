@@ -1,0 +1,189 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Cadencia · Tokens FORJA
+   Punto único de ajuste de la identidad.
+
+   Los colores se guardan como CANALES RGB sueltos ("196 98 45") en vez de
+   hex. Así Tailwind puede componer opacidades sobre ellos —`bg-terracota/10`,
+   `border-terracota/40`— sin duplicar tokens. En CSS plano se usan envueltos:
+   `rgb(var(--terracota))`.
+
+   Los nombres de marca (tinta, hueso, terracota…) son constantes; los roles
+   semánticos (superficie, texto, borde) son los que se reasignan en oscuro.
+   ========================================================================== */
+
+:root {
+  /* Constantes de marca */
+  --tinta: 26 26 26; /* #1A1A1A */
+  --hueso: 244 241 234; /* #F4F1EA */
+  --hueso-2: 250 248 242; /* #FAF8F2 */
+  --terracota: 196 98 45; /* #C4622D */
+  --terracota-suave: 217 138 90; /* #D98A5A */
+  --verde-forja: 62 92 80; /* #3E5C50 */
+  --ocre: 200 137 46; /* #C8892E */
+  --ciruela: 140 74 74; /* #8C4A4A */
+
+  /* Roles semánticos — modo claro */
+  --superficie: 244 241 234; /* hueso */
+  --superficie-2: 250 248 242; /* hueso-2, tarjetas */
+  --superficie-3: 238 233 221; /* hundidos y encabezados */
+  --borde: 228 221 203; /* #E4DDCB */
+  --borde-2: 227 220 201; /* #E3DCC9 */
+  --texto: 26 26 26; /* #1A1A1A */
+  --texto-2: 62 58 49; /* #3E3A31 */
+  --texto-3: 92 87 76; /* #5C574C */
+  --texto-4: 138 131 117; /* #8A8375 */
+
+  /* Tipografías (con respaldos del sistema si no hay red) */
+  --fuente-archivo: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --fuente-newsreader: 'Newsreader', Georgia, 'Times New Roman', serif;
+
+  color-scheme: light;
+}
+
+.dark {
+  --superficie: 26 26 26; /* tinta de fondo */
+  --superficie-2: 35 34 25;
+  --superficie-3: 44 42 32;
+  --borde: 58 56 46;
+  --borde-2: 69 66 54;
+  --texto: 244 241 234; /* hueso de texto */
+  --texto-2: 224 219 205;
+  --texto-3: 179 173 160;
+  --texto-4: 138 131 117;
+
+  /* Los acentos se aclaran para mantener el contraste AA sobre tinta */
+  --terracota: 217 116 66;
+  --terracota-suave: 227 148 104;
+  --verde-forja: 111 147 132;
+  --ocre: 217 160 74;
+  --ciruela: 200 139 139;
+
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    border-color: rgb(var(--borde));
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: rgb(var(--superficie));
+    color: rgb(var(--texto));
+    font-family: var(--fuente-archivo);
+    font-feature-settings: 'kern' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+
+  /* Foco visible y cálido en todo (accesibilidad AA) */
+  :focus-visible {
+    outline: 2px solid rgb(var(--terracota));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: rgb(var(--terracota) / 0.18);
+    color: rgb(var(--texto));
+  }
+
+  /* Los controles nativos heredan la firma */
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: rgb(var(--terracota));
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--borde-2));
+    border-radius: 999px;
+    border: 3px solid rgb(var(--superficie));
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--texto-4));
+  }
+}
+
+@layer components {
+  /* Superficie base de tarjeta */
+  .tarjeta {
+    @apply rounded-forja border border-borde bg-superficie-2;
+  }
+
+  /* Titular editorial — máximo una aparición por pantalla */
+  .editorial {
+    font-family: var(--fuente-newsreader);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+
+  /* Firma bajo el logo */
+  .firma-forja {
+    @apply text-[10px] font-medium uppercase tracking-firma text-texto-4;
+  }
+
+  .campo {
+    @apply w-full rounded-forja border border-borde bg-superficie px-3 py-2 text-sm text-texto
+           placeholder:text-texto-4 transition-colors
+           focus:border-terracota focus:outline-none focus:ring-2 focus:ring-terracota/20;
+  }
+
+  .etiqueta-campo {
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-texto-3;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-forja px-4 py-2 text-sm font-semibold
+           transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primario {
+    @apply btn bg-terracota text-hueso hover:brightness-[1.07] active:scale-[0.98];
+  }
+
+  .btn-secundario {
+    @apply btn border border-borde bg-superficie-2 text-texto-2 hover:border-texto-4 hover:bg-superficie-3 active:scale-[0.98];
+  }
+
+  .btn-fantasma {
+    @apply btn text-texto-3 hover:bg-superficie-3 hover:text-texto active:scale-[0.98];
+  }
+
+  .btn-peligro {
+    @apply btn border border-terracota/40 text-terracota hover:bg-terracota/10 active:scale-[0.98];
+  }
+}
+
+/* Respeta la preferencia de movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

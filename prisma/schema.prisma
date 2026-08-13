@@ -1,0 +1,278 @@
+// Cadencia · By Forja Estudio
+// Versión LOCAL: SQLite. Para migrar a nube: cambiar provider a "postgresql"
+// y la url a env("DATABASE_URL"). Ver README → "Migración a nube".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ---------------------------------------------------------------------------
+// Usuarios y sesión
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  nombre       String
+  email        String   @unique
+  passwordHash String
+  rol          String // admin | usuario | direccion
+  puesto       String?
+  avatarUrl    String?
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  clients    Client[]
+  activities Activity[]
+  notifications Notification[]
+  auditLogs  AuditLog[]
+  vacationBalances VacationBalance[]
+  vacationRequests VacationRequest[]
+
+  @@index([rol])
+}
+
+// ---------------------------------------------------------------------------
+// Cartera de clientes (privada por owner)
+// ---------------------------------------------------------------------------
+
+model Client {
+  id            String   @id @default(cuid())
+  ownerUserId   String
+  nombreEmpresa String
+  correo        String?
+  contactoNombre String?
+  telefono      String?
+  // Cada cuánto corre la nómina de esa empresa: semanal | quincenal | mensual.
+  // null = no se sabe todavía.
+  periodicidadNomina String?
+  notas         String?
+  activo        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  owner      User       @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  activities Activity[]
+
+  @@index([ownerUserId])
+  @@index([ownerUserId, activo])
+}
+
+// ---------------------------------------------------------------------------
+// Catálogos
+// ---------------------------------------------------------------------------
+
+model Category {
+  id         String   @id @default(cuid())
+  nombre     String   @unique
+  colorToken String // terracota | verde | ocre | tinta | arena | ciruela
+  icono      String?
+  orden      Int      @default(0)
+  activo     Boolean  @default(true)
+  // Marca la categoría cuyas actividades completadas cuentan como VACANTE.
+  // El histórico de vacantes se deriva de aquí; ver src/lib/repos/vacantes.ts.
+  esEntrevista Boolean @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  activities Activity[]
+}
+
+model Holiday {
+  id        String   @id @default(cuid())
+  fecha     String   @unique // yyyy-MM-dd en America/Mexico_City
+  nombre    String
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  clave     String   @id
+  valor     String
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Actividades
+// ---------------------------------------------------------------------------
+
+model Activity {
+  id          String    @id @default(cuid())
+  ownerUserId String
+  titulo      String
+  descripcion String?
+  categoryId  String?
+  prioridad   String    @default("media") // baja | media | alta | urgente
+  estado      String    @default("por_hacer") // por_hacer | en_proceso | hecha
+  fecha       DateTime?
+  allDay      Boolean   @default(true)
+  clientId    String?
+
+  // Recurrencia: JSON con { rrule, omitirFinDeSemana, reglaReajuste, respetarFestivos }
+  recurrenceRule     String?
+  recurrenceParentId String?
+
+  // Minutos de antelación del recordatorio. null = sin recordatorio.
+  // Ver src/lib/repos/recordatorios.ts.
+  recordatorioMinutos Int?
+
+  orden        Int       @default(0)
+  completadaEn DateTime?
+  archivada    Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  owner    User      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  client   Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  subtasks    ActivitySubtask[]
+  occurrences ActivityOccurrence[]
+  notifications Notification[]
+
+  @@index([ownerUserId, estado])
+  @@index([ownerUserId, fecha])
+  @@index([clientId])
+}
+
+model ActivitySubtask {
+  id         String  @id @default(cuid())
+  activityId String
+  texto      String
+  hecha      Boolean @default(false)
+  orden      Int     @default(0)
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@index([activityId])
+}
+
+// Excepciones materializadas de una serie recurrente.
+// Las ocurrencias "normales" se generan por ventana (ver src/lib/recurrence.ts);
+// aquí sólo se guardan las que se movieron, saltaron o completaron.
+model ActivityOccurrence {
+  id           String    @id @default(cuid())
+  activityId   String
+  fechaOriginal String // yyyy-MM-dd — llave lógica de la ocurrencia
+  fecha        DateTime? // fecha efectiva si se movió
+  estado       String    @default("por_hacer")
+  movida       Boolean   @default(false)
+  saltada      Boolean   @default(false)
+  titulo       String?
+  prioridad    String?
+  completadaEn DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, fechaOriginal])
+  @@index([activityId])
+}
+
+// ---------------------------------------------------------------------------
+// Recordatorios y bitácora
+// ---------------------------------------------------------------------------
+
+// Recordatorio materializado. A diferencia de las ocurrencias —que se generan
+// por ventana— los recordatorios SÍ viven en la base: en la nube una función
+// programada los lee por `programadaPara` para enviarlos.
+// Se rehacen en cada escritura de la actividad; ver src/lib/repos/recordatorios.ts.
+model Notification {
+  id             String    @id @default(cuid())
+  userId         String
+  activityId     String?
+  // Día teórico de la ocurrencia (yyyy-MM-dd). Para actividades sueltas es su
+  // propio día. Junto con activityId identifica al recordatorio: por eso el
+  // resincronizado es idempotente.
+  fechaOriginal  String?
+  // Día en el que la actividad cae de verdad: el teórico salvo que la ocurrencia
+  // se haya reajustado a día hábil o movido a mano. Es a donde lleva el aviso.
+  claveObjetivo  String?
+  titulo         String
+  cuerpo         String?
+  programadaPara DateTime
+  leido          Boolean   @default(false)
+  enviadaEn      DateTime?
+  createdAt      DateTime  @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity Activity? @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, fechaOriginal])
+  @@index([userId, leido])
+  @@index([userId, programadaPara])
+}
+
+// ---------------------------------------------------------------------------
+// Vacaciones y ausencias
+// ---------------------------------------------------------------------------
+
+// Saldo anual por persona. `diasDisponibles` NO se guarda: se deriva
+// (asignados − tomados − pendientes) para que no pueda quedar desincronizado.
+model VacationBalance {
+  id            String   @id @default(cuid())
+  userId        String
+  anio          Int
+  diasAsignados Int      @default(12)
+  diasTomados   Int      @default(0)
+  diasPendientes Int     @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, anio])
+  @@index([anio])
+}
+
+model VacationRequest {
+  id           String    @id @default(cuid())
+  userId       String
+  tipo         String // vacaciones | permiso | incapacidad | economico
+  // Claves yyyy-MM-dd en America/Mexico_City: una ausencia es de días
+  // completos, así que guardar instantes sólo invitaría a errores de huso.
+  fechaInicio  String
+  fechaFin     String
+  // Días hábiles calculados al solicitar: excluye fin de semana y festivos.
+  diasHabiles  Int
+  motivo       String?
+  adjuntoNombre String?
+  adjuntoTipo   String?
+  // Se sirve por /api/adjuntos/[id], con permiso: un comprobante de
+  // incapacidad no puede quedar accesible por URL a quien la adivine.
+  adjuntoRuta   String?
+  estatus      String    @default("pendiente") // pendiente | aprobada | rechazada | cancelada
+  resueltoPor  String?
+  resueltoEn   DateTime?
+  comentarioResolucion String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, estatus])
+  @@index([estatus, fechaInicio])
+  @@index([fechaInicio, fechaFin])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String
+  entidad   String
+  entidadId String
+  accion    String
+  antes     String?
+  despues   String?
+  createdAt DateTime @default(now())
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+  @@index([entidad, entidadId])
+}
