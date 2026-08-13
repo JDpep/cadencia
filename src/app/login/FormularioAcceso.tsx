@@ -35,6 +35,13 @@ export function FormularioAcceso({
 }) {
   const [estado, accion] = useActionState<EstadoFormulario, FormData>(accionIniciarSesion, {});
 
+  // Los campos vienen precargados SÓLO en desarrollo, para entrar rápido.
+  // En producción no: por un lado la contraseña acabaría escrita en el HTML de
+  // la página; por otro, quien escribiera otro correo sin tocar el campo de
+  // contraseña se llevaría un «incorrecta» sin entender por qué.
+  const correoInicial = mostrarConmutador ? 'ana@cadencia.mx' : '';
+  const claveInicial = mostrarConmutador ? 'cadencia123' : '';
+
   return (
     <div className="tarjeta p-6 shadow-forja">
       <form action={accion} className="space-y-4">
@@ -48,7 +55,7 @@ export function FormularioAcceso({
             type="email"
             autoComplete="username"
             required
-            defaultValue="ana@cadencia.mx"
+            defaultValue={correoInicial}
             className="campo"
             placeholder="tu@empresa.mx"
           />
@@ -64,7 +71,7 @@ export function FormularioAcceso({
             type="password"
             autoComplete="current-password"
             required
-            defaultValue="cadencia123"
+            defaultValue={claveInicial}
             className="campo"
             placeholder="••••••••"
           />
