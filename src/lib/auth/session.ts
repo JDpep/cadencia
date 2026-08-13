@@ -3,16 +3,39 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 
 /**
- * Sesión local: una cookie firmada con HMAC. Sin servicios externos.
- * Al migrar a la nube, este archivo se sustituye por Supabase Auth y el resto
- * de la app no cambia, porque todo consume `usuarioActual()` de guard.ts.
+ * Sesión: una cookie firmada con HMAC contra la tabla `User`.
+ *
+ * Todo el resto de la app consume `usuarioActual()` de guard.ts, así que si
+ * algún día se cambia por Supabase Auth sólo se toca este archivo.
  */
 
 const NOMBRE_COOKIE = 'cadencia_sesion';
 const DURACION_DIAS = 30;
 
+const SECRETO_DE_DESARROLLO = 'cadencia-local-dev-secret';
+
+/**
+ * En producción NO hay secreto por defecto.
+ *
+ * La cookie de sesión es `userId.emitida.firma`: quien conozca el secreto
+ * puede fabricar una cookie válida para CUALQUIER usuario, incluido el
+ * administrador. Un valor por defecto que además está en el repo equivale a no
+ * tener autenticación. Por eso aquí se falla en vez de arrancar inseguro.
+ */
 function secreto(): string {
-  return process.env.SESSION_SECRET || 'cadencia-local-dev-secret';
+  const valor = process.env.SESSION_SECRET;
+
+  if (!valor || valor === SECRETO_DE_DESARROLLO) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'Falta SESSION_SECRET. Sin él, cualquiera puede firmar una sesión válida ' +
+          'para cualquier usuario. Configúralo en las variables de entorno.',
+      );
+    }
+    return SECRETO_DE_DESARROLLO;
+  }
+
+  return valor;
 }
 
 function firmar(valor: string): string {

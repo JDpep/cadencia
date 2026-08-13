@@ -29,7 +29,7 @@ export default async function PaginaLogin() {
           <FormularioAcceso usuarios={usuarios} mostrarConmutador={enDesarrollo} />
 
           <p className="mt-6 text-center text-xs text-texto-4">
-            Versión local · los datos viven en tu máquina
+            {enDesarrollo ? 'Entorno de desarrollo' : 'By Forja Estudio'}
           </p>
         </div>
       </div>

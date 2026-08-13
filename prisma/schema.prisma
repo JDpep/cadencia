@@ -1,21 +1,20 @@
 // Cadencia · By Forja Estudio
-//
-// Postgres (Supabase). Dos URLs a propósito:
-//   DATABASE_URL — el pooler de Supabase (puerto 6543). Es la que usa la app:
-//                  en serverless cada invocación abre su conexión y sin pooler
-//                  se agota la base. Lleva ?pgbouncer=true&connection_limit=1.
-//   DIRECT_URL   — conexión directa (puerto 5432). Sólo para `db push` y las
-//                  migraciones, que necesitan una sesión real y no soportan
-//                  pgbouncer en modo transacción.
+// Postgres, en el Supabase que Vercel tiene enlazado.
 
 generator client {
   provider = "prisma-client-js"
 }
 
+// Los nombres son los que YA inyecta la integración Supabase↔Vercel, así que
+// no hay que configurar nada a mano para la base:
+//   POSTGRES_PRISMA_URL      → pooler (6543). La usa la app: en serverless cada
+//                              invocación abre conexión y sin pooler se agota.
+//   POSTGRES_URL_NON_POOLING → directa (5432). Sólo `db push` y migraciones,
+//                              que necesitan sesión real y no soportan pgbouncer.
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
 }
 
 // ---------------------------------------------------------------------------

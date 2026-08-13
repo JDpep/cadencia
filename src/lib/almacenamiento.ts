@@ -15,13 +15,24 @@ import 'server-only';
 
 export const BUCKET = 'comprobantes';
 
+/**
+ * La integración Supabase↔Vercel inyecta la URL como
+ * `NEXT_PUBLIC_SUPABASE_URL`; se acepta también `SUPABASE_URL` por si se
+ * configura a mano. La service_role key es secreta y sólo se usa aquí, en el
+ * servidor: nunca sale al navegador.
+ */
+const urlBase = () =>
+  process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
+
+const llaveServicio = () => process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
 function config() {
-  const url = process.env.SUPABASE_URL;
-  const llave = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = urlBase();
+  const llave = llaveServicio();
 
   if (!url || !llave) {
     throw new Error(
-      'Faltan SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY: sin ellas no se pueden guardar comprobantes.',
+      'Falta la URL de Supabase o SUPABASE_SERVICE_ROLE_KEY: sin ellas no se pueden guardar comprobantes.',
     );
   }
   return { url: url.replace(/\/$/, ''), llave };
@@ -29,7 +40,7 @@ function config() {
 
 /** ¿Está configurado el almacenamiento? La UI lo usa para no ofrecer adjuntos. */
 export function almacenamientoDisponible(): boolean {
-  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return Boolean(urlBase() && llaveServicio());
 }
 
 /**
