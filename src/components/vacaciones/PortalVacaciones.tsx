@@ -37,10 +37,13 @@ export function PortalVacaciones({
   saldo,
   solicitudes,
   festivos,
+  puedeAdjuntar,
 }: {
   saldo: SaldoVacaciones;
   solicitudes: SolicitudVista[];
   festivos: string[];
+  /** false cuando el almacenamiento de comprobantes no está configurado. */
+  puedeAdjuntar: boolean;
 }) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
@@ -101,6 +104,7 @@ export function PortalVacaciones({
         alCerrar={() => setAbierto(false)}
         saldo={saldo}
         festivos={setFestivos}
+        puedeAdjuntar={puedeAdjuntar}
       />
     </div>
   );
@@ -228,11 +232,13 @@ function FormularioSolicitud({
   alCerrar,
   saldo,
   festivos,
+  puedeAdjuntar,
 }: {
   abierto: boolean;
   alCerrar: () => void;
   saldo: SaldoVacaciones;
   festivos: Set<string>;
+  puedeAdjuntar: boolean;
 }) {
   const router = useRouter();
   const [enviando, iniciar] = useTransition();
@@ -441,8 +447,8 @@ function FormularioSolicitud({
           />
         </div>
 
-        {/* Comprobante */}
-        <div>
+        {/* Comprobante — sólo si hay dónde guardarlo */}
+        <div className={puedeAdjuntar ? undefined : 'hidden'}>
           <label htmlFor="v-adjunto" className="etiqueta-campo">
             Comprobante <span className="font-normal normal-case text-texto-4">(opcional)</span>
           </label>

@@ -166,7 +166,13 @@ export async function listarActividades(
   };
 
   if (q) {
-    where.OR = [{ titulo: { contains: q } }, { descripcion: { contains: q } }];
+    // `mode: 'insensitive'` no es cosmético: en SQLite `contains` ya ignoraba
+    // mayúsculas, en Postgres NO. Sin esto, buscar «textil» dejaría de
+    // encontrar «Textil Norte» al migrar, y en silencio.
+    where.OR = [
+      { titulo: { contains: q, mode: 'insensitive' } },
+      { descripcion: { contains: q, mode: 'insensitive' } },
+    ];
   }
   if (filtros.prioridad && filtros.prioridad !== 'todas') {
     where.prioridad = filtros.prioridad;

@@ -5,6 +5,8 @@ build
 .DS_Store
 *.pem
 npm-debug.log*
+# .env lleva la contraseña de la base y la llave de servicio: nunca al repo.
+.env
 .env.local
 prisma/dev.db
 prisma/dev.db-journal

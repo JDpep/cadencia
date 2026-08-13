@@ -13,28 +13,28 @@ El foco son **tareas y responsabilidades**, no reuniones: las juntas son una cat
 > cuente **sólo** entrevistas realmente completadas, y que **ninguna** actividad recurrente
 > caiga en fin de semana.
 
-Esta es la **versión LOCAL**: corre entera en tu máquina, sin cuentas ni servicios en la nube,
-guardando todo en un SQLite local. La ruta para llevarla a la nube está al final.
+Corre en **Vercel** con una base **Postgres en Supabase**. La misma base sirve para desarrollo
+local y para producción: hay una sola fuente de verdad.
 
 ---
 
 ## Requisitos
 
-- **Node.js 20 o superior** (probado con Node 22). Nada más.
-- No hace falta Docker, ni base de datos instalada, ni llaves de ningún servicio.
+- **Node.js 20 o superior** (probado con Node 22).
+- Acceso a la base de Supabase del proyecto (su cadena de conexión).
 
-## Cómo correrlo
+## Cómo correrlo en local
 
 ```bash
-npm install     # instala dependencias y genera el cliente de Prisma
-npm run seed    # crea la base y carga datos de prueba
-npm run dev     # http://localhost:3000
+npm install          # dependencias + cliente de Prisma
+cp .env.example .env # y rellena DATABASE_URL y DIRECT_URL
+npm run dev          # http://localhost:3000
 ```
 
-Abre <http://localhost:3000> y entra con cualquiera de los usuarios de abajo.
+`.env` **no está en el repo** a propósito: lleva la contraseña de la base. `.env.example`
+documenta cada variable y por qué existe.
 
-> `npm run dev` también crea la base si no existe, así que si te saltas el `seed` la app
-> levanta igual — sólo que vacía. Con `seed` puedes probar todo de inmediato.
+> Ojo: el local apunta a la **misma base que producción**. Lo que borres aquí, se borra allá.
 
 ## Usuarios de prueba
 
@@ -57,19 +57,17 @@ desarrollo local; en producción desaparece.
 | Comando | Qué hace |
 |---|---|
 | `npm run dev` | Servidor de desarrollo |
-| `npm run seed` | Crea/actualiza la base y siembra los datos de prueba |
-| `npm run db:reset` | **Borra** la base, la vuelve a crear y la siembra desde cero |
+| `npm run db:push` | Aplica el esquema de Prisma a la base (cambios de estructura) |
+| `npm run seed` | **BORRA** la base y siembra datos de muestra. Pide `PERMITIR_SEMBRADO=si` |
 | `npm run build` / `npm start` | Compilación y arranque de producción |
 | `npm run test:recurrencia` | Prueba el motor de recurrencia (no requiere servidor) |
 | `npm run test:recordatorios` | Prueba el cálculo de recordatorios (no requiere servidor) |
 | `npm run test:ausencias` | Prueba los días hábiles y el saldo de vacaciones (no requiere servidor) |
 | `npm run test:agenda` | Prueba la agenda expandida contra el servidor (requiere `npm run dev`) |
 
-La base es el archivo `prisma/dev.db`. Borrarlo equivale a `db:reset`.
-
-> Si vienes de una copia anterior a vacaciones y vacantes, corre **`npm run db:reset`** una vez:
-> el esquema creció (`VacationRequest`, `VacationBalance`, `Notification`, `Category.esEntrevista`)
-> y `prisma db push` se niega a aplicar algunos cambios sobre la base vieja.
+> **`seed` borra toda la base.** Cuando era un SQLite local no podía hacer daño; ahora apunta a
+> Supabase, que es compartida. Por eso exige pedirlo a propósito:
+> `PERMITIR_SEMBRADO=si npm run seed`. Si no, se niega y te dice cuántos datos hay.
 
 ---
 

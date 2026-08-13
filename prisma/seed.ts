@@ -28,6 +28,34 @@ function habil(dias: number): string {
   return clave;
 }
 
+/**
+ * Freno de mano.
+ *
+ * Mientras la base era un archivo SQLite local, `seed` no podía hacer daño:
+ * borraba y volvía a sembrar tu copia. Ahora apunta a Supabase, que es
+ * compartida y va a tener datos reales — y lo primero que hace es BORRARLO
+ * TODO. Así que hay que pedirlo a propósito:
+ *
+ *   PERMITIR_SEMBRADO=si npm run seed
+ */
+async function exigirConfirmacion() {
+  if (process.env.PERMITIR_SEMBRADO === 'si') return;
+
+  const [usuarios, clientes, actividades] = await Promise.all([
+    prisma.user.count(),
+    prisma.client.count(),
+    prisma.activity.count(),
+  ]);
+
+  console.error('\n⚠️  `seed` BORRA toda la base antes de sembrar.');
+  console.error(
+    `   Ahora mismo hay ${usuarios} usuarios, ${clientes} clientes y ${actividades} actividades.`,
+  );
+  console.error('\n   Si de verdad quieres reemplazarlo todo por datos de muestra:');
+  console.error('     PERMITIR_SEMBRADO=si npm run seed\n');
+  process.exit(1);
+}
+
 async function limpiar() {
   // Orden inverso a las dependencias.
   await prisma.auditLog.deleteMany();
@@ -45,6 +73,7 @@ async function limpiar() {
 }
 
 async function main() {
+  await exigirConfirmacion();
   console.log('◐ Sembrando Cadencia…');
   await limpiar();
 

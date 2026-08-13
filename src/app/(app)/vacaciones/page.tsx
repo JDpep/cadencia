@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { requerirSesion } from '@/lib/auth/guard';
 import { misSolicitudes, saldoDelUsuario } from '@/lib/repos/vacaciones';
 import { listarFestivos } from '@/lib/repos/catalogos';
+import { almacenamientoDisponible } from '@/lib/almacenamiento';
 import { PortalVacaciones } from '@/components/vacaciones/PortalVacaciones';
 
 export const dynamic = 'force-dynamic';
@@ -30,6 +31,9 @@ export default async function PaginaVacaciones() {
       saldo={saldo}
       solicitudes={solicitudes}
       festivos={festivos.map((f) => f.fecha)}
+      // El comprobante es opcional: si el almacenamiento no está configurado,
+      // no se ofrece adjuntar en vez de dejar que la subida falle al enviar.
+      puedeAdjuntar={almacenamientoDisponible()}
     />
   );
 }

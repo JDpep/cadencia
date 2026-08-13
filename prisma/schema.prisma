@@ -1,14 +1,21 @@
 // Cadencia · By Forja Estudio
-// Versión LOCAL: SQLite. Para migrar a nube: cambiar provider a "postgresql"
-// y la url a env("DATABASE_URL"). Ver README → "Migración a nube".
+//
+// Postgres (Supabase). Dos URLs a propósito:
+//   DATABASE_URL — el pooler de Supabase (puerto 6543). Es la que usa la app:
+//                  en serverless cada invocación abre su conexión y sin pooler
+//                  se agota la base. Lleva ?pgbouncer=true&connection_limit=1.
+//   DIRECT_URL   — conexión directa (puerto 5432). Sólo para `db push` y las
+//                  migraciones, que necesitan una sesión real y no soportan
+//                  pgbouncer en modo transacción.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ---------------------------------------------------------------------------

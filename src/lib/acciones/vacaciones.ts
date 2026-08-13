@@ -1,12 +1,12 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { revalidatePath } from 'next/cache';
 import { requerirUsuario } from '@/lib/auth/guard';
 import * as repo from '@/lib/repos/vacaciones';
 import { registrar } from '@/lib/repos/bitacora';
+import { subirComprobante } from '@/lib/almacenamiento';
 import { esTipoAusencia } from '@/lib/dominio';
 
 export type Resultado = { ok: true } | { ok: false; error: string };
@@ -36,14 +36,13 @@ function refrescar() {
 // ---------------------------------------------------------------------------
 
 /**
- * Los comprobantes se guardan FUERA de `public/`.
+ * Los comprobantes van a un bucket PRIVADO de Supabase Storage.
  *
- * Un certificado de incapacidad no puede quedar servible por URL a quien la
- * adivine: se guarda aquí y se entrega por `/api/adjuntos/[id]`, que sí
- * comprueba permisos.
+ * No al disco: en Vercel el filesystem es de solo lectura y efímero. Y no a un
+ * bucket público: un certificado de incapacidad no puede quedar servible por
+ * URL a quien la adivine. Se entregan por `/api/adjuntos/[id]`, que comprueba
+ * permisos antes de pedir el archivo.
  */
-const CARPETA_ADJUNTOS = path.join(process.cwd(), 'almacen', 'adjuntos');
-
 const TIPOS_PERMITIDOS = new Set([
   'application/pdf',
   'image/png',
@@ -63,20 +62,17 @@ async function guardarAdjunto(archivo: File | null) {
     throw new Error('El comprobante no puede pesar más de 2 MB.');
   }
 
-  await mkdir(CARPETA_ADJUNTOS, { recursive: true });
-
-  // Nombre de archivo generado: el que trae el usuario sólo se guarda como
-  // etiqueta, nunca se usa para construir la ruta.
+  // Nombre generado: el que trae el usuario sólo se guarda como etiqueta,
+  // nunca se usa para construir la ruta.
   const extension = path.extname(archivo.name).slice(0, 10).replace(/[^.\w]/g, '');
-  const nombreEnDisco = `${randomUUID()}${extension}`;
-  const destino = path.join(CARPETA_ADJUNTOS, nombreEnDisco);
+  const ruta = `${randomUUID()}${extension}`;
 
-  await writeFile(destino, Buffer.from(await archivo.arrayBuffer()));
+  await subirComprobante(ruta, await archivo.arrayBuffer(), archivo.type);
 
   return {
     nombre: archivo.name.slice(0, 180),
     tipo: archivo.type,
-    ruta: nombreEnDisco,
+    ruta,
   };
 }
 

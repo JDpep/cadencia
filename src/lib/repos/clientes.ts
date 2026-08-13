@@ -55,11 +55,13 @@ export async function listarClientes(
       activo: true,
       ...(q
         ? {
+            // Insensible a mayúsculas: en Postgres `contains` no lo es solo,
+            // y en SQLite sí lo era. Sin esto la búsqueda se rompe al migrar.
             OR: [
-              { nombreEmpresa: { contains: q } },
-              { contactoNombre: { contains: q } },
-              { correo: { contains: q } },
-              { telefono: { contains: q } },
+              { nombreEmpresa: { contains: q, mode: 'insensitive' } },
+              { contactoNombre: { contains: q, mode: 'insensitive' } },
+              { correo: { contains: q, mode: 'insensitive' } },
+              { telefono: { contains: q, mode: 'insensitive' } },
             ],
           }
         : {}),
