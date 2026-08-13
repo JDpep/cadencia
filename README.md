@@ -424,46 +424,59 @@ va la firma «By Forja Estudio»**.
 
 ---
 
-## Migración a la nube (después)
+## Cómo está desplegado
 
-El código ya está preparado; los cambios son acotados:
+**Vercel** sirve la app; **Supabase** guarda los datos y los comprobantes.
 
-1. **Base de datos.** En `prisma/schema.prisma`, cambia `provider = "sqlite"` por
-   `"postgresql"` y `url` por `env("DATABASE_URL")`. Los campos JSON guardados como `String`
-   (`recurrenceRule`, `antes`/`despues` de la bitácora) pueden pasar a `Json`. Ningún
-   componente cambia, porque nadie consulta Prisma directamente.
+### Variables de entorno
 
-2. **Autenticación.** Sustituye `src/lib/auth/session.ts` por Supabase Auth. Lo único que debe
-   seguir en pie es `usuarioActual()` en `guard.ts`: todo lo demás consume esa función. El
-   conmutador de pruebas se elimina.
+La integración Supabase↔Vercel inyecta sola casi todo. Prisma lee justo esos nombres, así que
+la base no necesita configuración manual:
 
-3. **RLS.** `guard.ts` es el espejo de las políticas que hay que escribir:
-   - `activities`: `ownerUserId = auth.uid()` para lectura y escritura, **sin excepción de
-     rol** — así están hoy.
-   - `clients`: `ownerUserId = auth.uid()`, más una policy adicional de lectura para
-     `admin`/`direccion` condicionada al ajuste `privacidad_total_clientes`.
-   - `vacation_requests`: `userId = auth.uid()` para lectura y escritura del dueño, más una
-     policy de lectura y de update sólo para `admin` (aprobar/rechazar). `direccion` **no** entra.
-   - `vacation_balances`: lectura del propio dueño; lectura de todos y escritura sólo `admin`.
-   - `notifications`: `userId = auth.uid()` para lectura y escritura, sin excepción de rol.
-   - Vacantes: no necesita policy propia — se deriva de `activities`, así que hereda la suya.
-     El desglose por persona que ven Admin y Dirección es agregado, no detalle.
-   - Catálogos: lectura para todos, escritura sólo `admin`.
+| Variable | De dónde sale |
+|---|---|
+| `POSTGRES_PRISMA_URL` | Integración. Pooler (6543) — la que usa la app |
+| `POSTGRES_URL_NON_POOLING` | Integración. Directa (5432) — sólo `db push` y migraciones |
+| `NEXT_PUBLIC_SUPABASE_URL` | Integración |
+| `SUPABASE_SERVICE_ROLE_KEY` | Integración. Sólo servidor: lee el bucket de comprobantes |
+| `SESSION_SECRET` | **A mano.** Un valor largo y aleatorio |
 
-4. **Tiempo real.** Suscríbete a `activities` y `activity_occurrences` con Realtime. Hoy la app
-   usa actualización optimista más revalidación; el enganche va donde ahora se llama
-   `router.refresh()`.
+**Por qué dos URLs de base.** En serverless cada invocación abre su propia conexión; sin el
+pooler se agotan las de Postgres. Pero el pooler en modo transacción no soporta *prepared
+statements* ni las sesiones que necesitan las migraciones, de ahí la conexión directa aparte.
 
-5. **Adjuntos.** Los comprobantes de ausencia hoy viven en `almacen/adjuntos/` y se sirven por
-   `/api/adjuntos/[id]`. En la nube pasan a **Supabase Storage** en un bucket privado; la ruta
-   guardada en `adjuntoRuta` se convierte en la llave del objeto y el route handler devuelve una
-   URL firmada de corta vida. La comprobación de permiso no cambia: ya está en el repositorio.
+**`SESSION_SECRET` no tiene valor por defecto en producción: la app falla si falta.** La cookie
+de sesión es `userId.emitida.firma`, así que quien conozca el secreto puede fabricar una sesión
+válida para cualquier usuario, administrador incluido. Un valor por defecto —y encima versionado—
+sería no tener autenticación. Es mejor no arrancar.
 
-6. **Recordatorios.** Ya están materializados en `Notification` con `programadaPara`, así que el
-   trabajo pendiente es sólo el envío: una Edge Function programada que consulte
-   `programadaPara <= now() AND enviadaEn IS NULL`, mande el correo o el push, y selle
-   `enviadaEn`. El cálculo, el horizonte y el retiro ya están hechos y no cambian. En la policy
-   de `notifications`: `userId = auth.uid()` para lectura y escritura, sin excepción de rol.
+### La base
 
-Lo que **no** hace falta tocar: el motor de recurrencia, el cálculo de recordatorios, los
-repositorios, las server actions, los componentes y los tokens visuales.
+El esquema se aplica a propósito con `npm run db:push`, **no** en cada despliegue: el build sólo
+hace `prisma generate && next build`. Así una edición descuidada del esquema no puede tirar una
+columna con datos reales en mitad de un deploy.
+
+Las tablas tienen **RLS activo y sin políticas**, y revocados los privilegios de `anon` y
+`authenticated`. No es contradictorio: Cadencia habla con Postgres por Prisma con el rol
+`postgres`, que es dueño de las tablas y salta RLS; los permisos de negocio se aplican en el
+servidor, en `guard.ts`. Pero Supabase expone `public` por su API REST, y sin RLS la llave
+anónima —que es pública por diseño— podría leer `User` con todo y `passwordHash`.
+
+### Los comprobantes
+
+Van a un bucket **privado** de Supabase Storage, no al disco: en Vercel el sistema de archivos es
+de solo lectura y efímero. Y no a un bucket público: un certificado de incapacidad no puede
+quedar accesible por URL a quien la adivine. Se entregan por `/api/adjuntos/[id]`, que comprueba
+permisos antes de pedir el archivo. Si el almacenamiento no está configurado, la app no ofrece
+adjuntar en vez de fallar al enviar.
+
+### Lo que queda pendiente de la migración
+
+- **Autenticación.** Sigue siendo la cookie firmada contra la tabla `User` con bcrypt, no
+  Supabase Auth. Es deliberado: las contraseñas se administran desde la propia app. Si algún día
+  se cambia, sólo se toca `src/lib/auth/session.ts` — todo lo demás consume `usuarioActual()`.
+- **Tiempo real.** Hoy la app usa actualización optimista más revalidación; el enganche a
+  Realtime va donde ahora se llama `router.refresh()`.
+- **Envío de recordatorios.** Ya están materializados en `Notification` con `programadaPara`, así
+  que falta sólo una función programada que lea `programadaPara <= now() AND enviadaEn IS NULL`,
+  mande el aviso y selle `enviadaEn`.
