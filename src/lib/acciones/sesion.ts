@@ -20,7 +20,15 @@ export async function accionIniciarSesion(
   const user = await verificarCredenciales(email, password);
   if (!user) return { error: 'Correo o contraseña incorrectos.' };
 
-  await crearSesion(user.id);
+  // El try envuelve SÓLO a crearSesion: `redirect()` funciona lanzando una
+  // excepción especial, y atraparla rompería la navegación.
+  try {
+    await crearSesion(user.id);
+  } catch (e) {
+    console.error('[sesion] no se pudo emitir', e);
+    return { error: e instanceof Error ? e.message : 'No se pudo iniciar sesión.' };
+  }
+
   redirect('/');
 }
 

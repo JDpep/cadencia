@@ -14,45 +14,50 @@ const DURACION_DIAS = 30;
 
 const SECRETO_DE_DESARROLLO = 'cadencia-local-dev-secret';
 
+export const FALTA_SECRETO =
+  'Falta SESSION_SECRET en el servidor. Sin él, cualquiera podría firmar una ' +
+  'sesión válida para cualquier usuario, así que no se emiten sesiones. ' +
+  'Configúralo en las variables de entorno y vuelve a desplegar.';
+
 /**
- * En producción NO hay secreto por defecto.
+ * El secreto que firma la cookie, o `null` si no hay uno utilizable.
  *
- * La cookie de sesión es `userId.emitida.firma`: quien conozca el secreto
- * puede fabricar una cookie válida para CUALQUIER usuario, incluido el
- * administrador. Un valor por defecto que además está en el repo equivale a no
- * tener autenticación. Por eso aquí se falla en vez de arrancar inseguro.
+ * En producción no vale el de desarrollo: la cookie es `userId.emitida.firma`,
+ * así que quien conozca el secreto puede fabricar una sesión para CUALQUIER
+ * usuario, administrador incluido. Y ese valor está en el repo.
  */
-function secreto(): string {
+function secreto(): string | null {
   const valor = process.env.SESSION_SECRET;
 
   if (!valor || valor === SECRETO_DE_DESARROLLO) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(
-        'Falta SESSION_SECRET. Sin él, cualquiera puede firmar una sesión válida ' +
-          'para cualquier usuario. Configúralo en las variables de entorno.',
-      );
-    }
-    return SECRETO_DE_DESARROLLO;
+    return process.env.NODE_ENV === 'production' ? null : SECRETO_DE_DESARROLLO;
   }
 
   return valor;
 }
 
-function firmar(valor: string): string {
-  return createHmac('sha256', secreto()).update(valor).digest('base64url');
+function firmar(valor: string, clave: string): string {
+  return createHmac('sha256', clave).update(valor).digest('base64url');
 }
 
-function verificar(valor: string, firma: string): boolean {
-  const esperada = Buffer.from(firmar(valor));
+function verificar(valor: string, firma: string, clave: string): boolean {
+  const esperada = Buffer.from(firmar(valor, clave));
   const recibida = Buffer.from(firma);
   if (esperada.length !== recibida.length) return false;
   return timingSafeEqual(esperada, recibida);
 }
 
+/**
+ * Emitir una sesión sin secreto sí es un error duro: es el momento en que la
+ * falta de configuración importa, y el login puede decirlo con claridad.
+ */
 export async function crearSesion(userId: string): Promise<void> {
+  const clave = secreto();
+  if (!clave) throw new Error(FALTA_SECRETO);
+
   const emitida = Date.now().toString(36);
   const payload = `${userId}.${emitida}`;
-  const token = `${payload}.${firmar(payload)}`;
+  const token = `${payload}.${firmar(payload, clave)}`;
 
   const almacen = await cookies();
   almacen.set(NOMBRE_COOKIE, token, {
@@ -64,16 +69,29 @@ export async function crearSesion(userId: string): Promise<void> {
   });
 }
 
+/**
+ * Leer una sesión sin secreto NO tira la app: devuelve «no hay sesión».
+ *
+ * Fallar cerrado aquí significa negar el acceso, no romper todas las páginas.
+ * Si esto lanzara, cualquiera con una cookie vieja se toparía con un 500 en
+ * toda la aplicación en vez de acabar, tranquilamente, en el login.
+ */
 export async function leerSesion(): Promise<string | null> {
   const almacen = await cookies();
   const token = almacen.get(NOMBRE_COOKIE)?.value;
   if (!token) return null;
 
+  const clave = secreto();
+  if (!clave) {
+    console.error('[sesion]', FALTA_SECRETO);
+    return null;
+  }
+
   const partes = token.split('.');
   if (partes.length !== 3) return null;
 
   const [userId, emitida, firma] = partes;
-  if (!verificar(`${userId}.${emitida}`, firma)) return null;
+  if (!verificar(`${userId}.${emitida}`, firma, clave)) return null;
 
   const emitidaMs = parseInt(emitida, 36);
   if (Number.isNaN(emitidaMs)) return null;
