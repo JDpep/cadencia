@@ -98,7 +98,23 @@ function resumir(json: string | null): string {
   if (!json) return '—';
   try {
     const o = JSON.parse(json) as Record<string, unknown>;
-    const interesa = ['titulo', 'nombreEmpresa', 'nombre', 'estado', 'email', 'clave', 'activada'];
+    // `motivo` va primero y sin etiqueta: en un reagendado es lo único que se
+    // quiere leer de un vistazo, y es la razón de pedirlo.
+    if (typeof o.motivo === 'string' && o.motivo.trim()) {
+      const cuando = o.nuevaClave ? ` → ${String(o.nuevaClave)}` : '';
+      return `«${o.motivo}»${cuando}`;
+    }
+
+    const interesa = [
+      'titulo',
+      'nombreEmpresa',
+      'nombre',
+      'estado',
+      'email',
+      'clave',
+      'nuevaClave',
+      'activada',
+    ];
 
     const partes = interesa
       .filter((k) => o[k] !== undefined && o[k] !== null)

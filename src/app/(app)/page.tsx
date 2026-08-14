@@ -3,7 +3,9 @@ import { requerirSesion, type UsuarioSesion } from '@/lib/auth/guard';
 import { resumenDashboard, type ResumenDashboard } from '@/lib/repos/dashboard';
 import { panoramaOrganizacional } from '@/lib/repos/panorama';
 import { vacantesDelMes } from '@/lib/repos/vacantes';
-import { FilaAgenda } from '@/components/agenda/FilaAgenda';
+import { ListaAccionable } from '@/components/agenda/ListaAccionable';
+import { clientesVinculables } from '@/lib/repos/clientes';
+import { listarCategorias } from '@/lib/repos/catalogos';
 import { TablaPanorama } from '@/components/panorama/TablaPanorama';
 import { EquipoCompacto } from '@/components/panorama/EquipoCompacto';
 import { ResumenVacantes } from '@/components/vacantes/ResumenVacantes';
@@ -57,7 +59,11 @@ export default async function PaginaInicio() {
     );
   }
 
-  const r = await resumenDashboard(usuario);
+  const [r, categorias, clientes] = await Promise.all([
+    resumenDashboard(usuario),
+    listarCategorias(),
+    clientesVinculables(usuario),
+  ]);
 
   // Administración lidera con el equipo: su propio tablero personal suele estar
   // vacío —no lleva cartera— y cuatro ceros no le dicen nada.
@@ -127,9 +133,7 @@ export default async function PaginaInicio() {
               conteo={r.hoy.length}
               vacio="No tienes nada agendado para hoy."
             >
-              {r.hoy.map((i) => (
-                <FilaAgenda key={i.llave} item={i} />
-              ))}
+              <ListaAccionable items={r.hoy} categorias={categorias} clientes={clientes} />
             </ListaAgenda>
           </div>
 
@@ -139,7 +143,14 @@ export default async function PaginaInicio() {
     );
   }
 
-  return <DashboardEjecutivo usuario={usuario} r={r} />;
+  return (
+    <DashboardEjecutivo
+      usuario={usuario}
+      r={r}
+      categorias={categorias}
+      clientes={clientes}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -147,9 +158,13 @@ export default async function PaginaInicio() {
 function DashboardEjecutivo({
   usuario,
   r,
+  categorias,
+  clientes,
 }: {
   usuario: UsuarioSesion;
   r: ResumenDashboard;
+  categorias: { id: string; nombre: string; colorToken: string; icono: string | null }[];
+  clientes: { id: string; nombreEmpresa: string }[];
 }) {
   const hoy = hoyClave();
   const maxDistribucion = Math.max(1, ...r.distribucion.map((d) => d.abiertas));
@@ -209,9 +224,7 @@ function DashboardEjecutivo({
             vacio="Nada agendado para hoy."
             enlaceVacio={{ href: '/actividades', texto: 'Agrega una actividad' }}
           >
-            {r.hoy.map((i) => (
-              <FilaAgenda key={i.llave} item={i} />
-            ))}
+            <ListaAccionable items={r.hoy} categorias={categorias} clientes={clientes} />
           </ListaAgenda>
         </div>
 
@@ -274,9 +287,12 @@ function DashboardEjecutivo({
           conteo={r.vencidas.length}
           vacio="Nada vencido. Bien ahí."
         >
-          {r.vencidas.map((i) => (
-            <FilaAgenda key={i.llave} item={i} destacarAtraso diasAtraso={i.diasAtraso} />
-          ))}
+          <ListaAccionable
+            items={r.vencidas}
+            categorias={categorias}
+            clientes={clientes}
+            destacarAtraso
+          />
         </ListaAgenda>
 
         <ListaAgenda
@@ -285,14 +301,12 @@ function DashboardEjecutivo({
           conteo={r.proximas.length}
           vacio="Nada agendado esta semana."
         >
-          {r.proximas.map((i) => (
-            <FilaAgenda
-              key={i.llave}
-              item={i}
-              mostrarFecha
-              etiquetaFecha={fechaRelativa(i.clave)}
-            />
-          ))}
+          <ListaAccionable
+            items={r.proximas.map((i) => ({ ...i, etiquetaFecha: fechaRelativa(i.clave) }))}
+            categorias={categorias}
+            clientes={clientes}
+            mostrarFecha
+          />
         </ListaAgenda>
       </div>
     </div>
@@ -382,7 +396,7 @@ function ListaAgenda({
           ) : null}
         </p>
       ) : (
-        <ul className="px-4 py-0.5">{children}</ul>
+        children
       )}
     </section>
   );

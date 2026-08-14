@@ -21,6 +21,9 @@ import { cn } from '@/lib/utils';
 export function FilaAgenda({
   item,
   alAbrir,
+  alEditar,
+  alReagendar,
+  alEliminar,
   mostrarFecha,
   etiquetaFecha,
   destacarAtraso,
@@ -29,6 +32,10 @@ export function FilaAgenda({
 }: {
   item: ItemAgenda;
   alAbrir?: (item: ItemAgenda) => void;
+  /** Cada acción aparece sólo si quien usa la fila la proporciona. */
+  alEditar?: (item: ItemAgenda) => void;
+  alReagendar?: (item: ItemAgenda) => void;
+  alEliminar?: (item: ItemAgenda) => void;
   mostrarFecha?: boolean;
   etiquetaFecha?: string;
   destacarAtraso?: boolean;
@@ -125,6 +132,79 @@ export function FilaAgenda({
           ) : null}
         </span>
       </button>
+
+      {/*
+        Acciones. Aparecen al pasar el cursor para no ensuciar la lista, pero
+        se vuelven visibles al tabular: si sólo respondieran al ratón, con
+        teclado serían inalcanzables.
+      */}
+      {alEditar || alReagendar || alEliminar ? (
+        <span className="mt-0.5 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+          {alEditar ? (
+            <BotonAccion etiqueta={`Editar «${item.titulo}»`} alPulsar={() => alEditar(item)}>
+              <path d="M11.5 2.5l2 2L5 13l-2.5.5.5-2.5 8.5-8.5z" strokeLinejoin="round" />
+            </BotonAccion>
+          ) : null}
+
+          {alReagendar ? (
+            <BotonAccion
+              etiqueta={`Reagendar «${item.titulo}»`}
+              alPulsar={() => alReagendar(item)}
+            >
+              <rect x="2" y="3" width="12" height="11" rx="2" />
+              <path d="M2 6.5h12M5.5 2v2M10.5 2v2" strokeLinecap="round" />
+              <path d="M6 10.5h4M8.5 9l1.5 1.5L8.5 12" strokeLinecap="round" strokeLinejoin="round" />
+            </BotonAccion>
+          ) : null}
+
+          {alEliminar ? (
+            <BotonAccion
+              etiqueta={`Eliminar «${item.titulo}»`}
+              alPulsar={() => alEliminar(item)}
+              peligro
+            >
+              <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.5 8.5h6l.5-8.5" strokeLinecap="round" strokeLinejoin="round" />
+            </BotonAccion>
+          ) : null}
+        </span>
+      ) : null}
     </li>
+  );
+}
+
+/** Botón de icono de la fila: mismo tamaño y comportamiento para las tres. */
+function BotonAccion({
+  etiqueta,
+  alPulsar,
+  peligro,
+  children,
+}: {
+  etiqueta: string;
+  alPulsar: () => void;
+  peligro?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={alPulsar}
+      aria-label={etiqueta}
+      title={etiqueta}
+      className={cn(
+        'rounded-[7px] p-1.5 text-texto-4 transition-colors',
+        peligro ? 'hover:bg-terracota/10 hover:text-terracota' : 'hover:bg-superficie-3 hover:text-texto',
+      )}
+    >
+      <svg
+        viewBox="0 0 16 16"
+        className="h-3.5 w-3.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        aria-hidden="true"
+      >
+        {children}
+      </svg>
+    </button>
   );
 }

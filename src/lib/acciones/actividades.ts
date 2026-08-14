@@ -163,6 +163,57 @@ export async function accionReprogramar(
   });
 }
 
+/**
+ * Reagendar con motivo.
+ *
+ * Distinto de `accionReprogramar`, que es el arrastre en el calendario: aquí el
+ * usuario dice a propósito POR QUÉ se mueve, y esa razón se guarda en la
+ * bitácora. Mover una fecha sin dejar rastro es justo lo que vuelve inútil un
+ * historial: al mes nadie recuerda si algo se recorrió por el cliente, por una
+ * urgencia o porque no dio tiempo.
+ *
+ * Sirve igual para una actividad suelta que para una ocurrencia de serie: en el
+ * segundo caso se mueve SÓLO esa ocurrencia y la serie sigue intacta.
+ */
+export async function accionReagendar(
+  activityId: string,
+  fechaOriginal: ClaveDia | null,
+  nuevaClave: ClaveDia,
+  hora: string | null,
+  motivo: string,
+): Promise<Resultado> {
+  return envolver(async () => {
+    const user = await requerirUsuario();
+
+    const razon = motivo.trim();
+    if (!razon) throw new Error('Escribe por qué se reagenda.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(nuevaClave)) throw new Error('Elige la nueva fecha.');
+
+    const antes = fechaOriginal
+      ? { fechaOriginal }
+      : { fecha: (await repo.obtenerActividad(user, activityId))?.fecha ?? null };
+
+    if (fechaOriginal) {
+      await repo.moverOcurrencia(user, activityId, fechaOriginal, nuevaClave, hora);
+    } else {
+      const r = await repo.reprogramar(user, activityId, nuevaClave, hora);
+      if (!r) throw new Error('La actividad ya no existe.');
+    }
+
+    await registrar(
+      user.id,
+      fechaOriginal ? 'occurrence' : 'activity',
+      fechaOriginal ? `${activityId}::${fechaOriginal}` : activityId,
+      'reagendar',
+      antes,
+      { nuevaClave, hora, motivo: razon },
+    );
+
+    await sincronizar(user, activityId);
+    refrescar();
+  });
+}
+
 // --- Sub-actividades -------------------------------------------------------
 
 export async function accionAgregarSubtarea(
