@@ -11,7 +11,10 @@ export function Navegacion({ enlaces }: { enlaces: Enlace[] }) {
   const ruta = usePathname();
 
   return (
-    <nav aria-label="Secciones" className="flex items-center gap-0.5 overflow-x-auto">
+    <nav
+      aria-label="Secciones"
+      className="franja-deslizable flex items-center gap-0.5 overflow-x-auto"
+    >
       {enlaces.map((e) => {
         const activo = e.href === '/' ? ruta === '/' : ruta.startsWith(e.href);
         return (
@@ -28,7 +31,10 @@ export function Navegacion({ enlaces }: { enlaces: Enlace[] }) {
           >
             {e.texto}
             {activo ? (
-              <span className="absolute inset-x-3 -bottom-[13px] h-[2px] rounded-full bg-terracota" />
+              // Dentro de la caja, no colgando por debajo: `overflow-x-auto`
+              // convierte también el desbordamiento vertical en recorte, así
+              // que un subrayado fuera del borde simplemente no se veía.
+              <span className="absolute inset-x-3 bottom-0.5 h-[2px] rounded-full bg-terracota" />
             ) : null}
           </Link>
         );

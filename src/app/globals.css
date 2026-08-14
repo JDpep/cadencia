@@ -175,6 +175,16 @@
   .btn-peligro {
     @apply btn border border-terracota/40 text-terracota hover:bg-terracota/10 active:scale-[0.98];
   }
+
+  /* Franja que se desplaza en horizontal sin enseñar barra: la navegación del
+     encabezado, que con muchos enlaces no cabe pero tampoco debe ensuciarlo. */
+  .franja-deslizable {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .franja-deslizable::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Respeta la preferencia de movimiento reducido */

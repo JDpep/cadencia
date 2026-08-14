@@ -60,11 +60,19 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
             <Marca tamano="sm" />
           </Link>
 
-          <div className="ml-1 hidden flex-1 md:block">
+          {/*
+            `min-w-0` no es decorativo: un elemento flexible no se encoge por
+            debajo del ancho de su contenido a menos que se le permita. Sin
+            esto, los nueve enlaces del rol Admin obligaban a la barra a medir
+            más que la ventana y empujaban el menú de perfil fuera de pantalla,
+            en vez de dejar que la navegación se desplace dentro de su hueco.
+          */}
+          <div className="ml-1 hidden min-w-0 flex-1 md:block">
             <Navegacion enlaces={enlaces} />
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          {/* Y este grupo nunca se encoge: es el que quedaba recortado. */}
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <BuscadorGlobal />
             <CampanaRecordatorios />
             <InterruptorTema />
